@@ -27,14 +27,15 @@ int main(int argc, char *argv[]) {
 	int myid;                   // my rank
 	int vertices;         		// number of vertices
 	int mynumber;               // my value
-	int* etour;
 	MPI_Status stat;            // struct- contains kod- source, tag, error
 
 	//MPI INIT
 	MPI_Init(&argc,&argv);                          // MPI init
 	MPI_Comm_size(MPI_COMM_WORLD, &numprocs);       // get number of running processes
 	MPI_Comm_rank(MPI_COMM_WORLD, &myid);           // get rank of my process
+	vertices = (numprocs + 2) / 2;
 
+	// handle corner cases
 	if (strlen(argv[1]) == 1) {
 		if (myid == 0) {
 			cout << argv[1][0] << ":0" << endl;
@@ -49,20 +50,18 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
-	vertices = (numprocs + 2) / 2;
-	int weight;
-	etour = new int[numprocs];
-
-	// Lets count from 1
+	// count from 1 to compute euler tour
 	myid++;
 
 	// mark forward and retreat edges
+	int weight;
 	if (is_forward(myid, vertices)) {
 		weight = -1;
 	} else {
 		weight = 1;
 	}
 
+	// distribute weights info among all processors
 	int* arr_weights = new int[numprocs];
 	MPI_Allgather(&weight, 1, MPI_INT, arr_weights, 1, MPI_INT, MPI_COMM_WORLD);
 
@@ -86,14 +85,18 @@ int main(int argc, char *argv[]) {
     if (myid == vertices + 1) {
         next_value = myid;
     }
+
+    // ok, now we can count from 0 again
     next_value--;
     myid--;
 
     // distribute Etour info among all processors
+    int* etour = new int[numprocs];
     MPI_Allgather(&next_value, 1, MPI_INT, etour, 1, MPI_INT, MPI_COMM_WORLD);
 
+    // compute suffix sum
     int suffix;
-    int position3;
+    int next_position;
     int* arr_final = new int[numprocs];
 	if (etour[myid] == myid) {
     	suffix = 0;
@@ -101,21 +104,22 @@ int main(int argc, char *argv[]) {
     	suffix = arr_weights[myid];
     }
     MPI_Allgather(&suffix, 1, MPI_INT, arr_final, 1, MPI_INT, MPI_COMM_WORLD);
-
     for (int k = 0; k < log2(numprocs); k++) {
 	    suffix = arr_final[myid] + arr_final[etour[myid]];
-	    position3 = etour[etour[myid]];
+	    next_position = etour[etour[myid]];
 
 	    MPI_Allgather(&suffix, 1, MPI_INT, arr_final, 1, MPI_INT, MPI_COMM_WORLD);
-	    MPI_Allgather(&position3, 1, MPI_INT, etour, 1, MPI_INT, MPI_COMM_WORLD);
+	    MPI_Allgather(&next_position, 1, MPI_INT, etour, 1, MPI_INT, MPI_COMM_WORLD);
     }	
 
+    // adjust values to value of last element
     if (arr_weights[numprocs - 1] != 0) {
     	suffix = arr_final[myid] + arr_weights[numprocs - 1];
     }
     MPI_Allgather(&suffix, 1, MPI_INT, arr_final, 1, MPI_INT, MPI_COMM_WORLD);
 
-    if (myid == 1) { 
+    // print result
+    if (myid == 0) { 
     	cout << argv[1][0] << ":0,";
     	for (int i = 0; i < vertices - 2; i++) {
     		cout << argv[1][i + 1] << ":" << arr_final[i] + 1 << ",";
