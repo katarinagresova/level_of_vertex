@@ -3,6 +3,8 @@
 
 using namespace std;
 
+#define MEASURE false
+
 bool is_forward(int myid, int vertices) {
 	return myid < vertices;
 }
@@ -12,6 +14,26 @@ bool is_leaf(int myid, int vertices) {
 
 bool has_right(int myid, int vertices) {
     return myid >= vertices && ((myid - vertices) % 2 == 0) && (myid < 2 * vertices - 2);
+}
+
+/**
+ * Measure time and print result to std out, it make diff of start time and end time
+ * Source: http://www.guyrutenberg.com/2007/09/22/profiling-code-using-clock_gettime/
+ * @param timeStart
+ * @param timeEnd
+ */
+void measureTime(timespec timeStart, timespec timeEnd) {
+    timespec timeTemp;
+    if ((timeEnd.tv_nsec - timeStart.tv_nsec) < 0)
+    {
+        timeTemp.tv_sec = timeEnd.tv_sec - timeStart.tv_sec - 1;
+        timeTemp.tv_nsec = 1000000000 + timeEnd.tv_nsec - timeStart.tv_nsec;
+    } else
+    {
+        timeTemp.tv_sec = timeEnd.tv_sec - timeStart.tv_sec;
+        timeTemp.tv_nsec = timeEnd.tv_nsec - timeStart.tv_nsec;
+    }
+    cout<< timeTemp.tv_sec << ":" << timeTemp.tv_nsec << endl;
 }
 
 /**
@@ -35,16 +57,35 @@ int main(int argc, char *argv[]) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &myid);           // get rank of my process
 	vertices = (numprocs + 2) / 2;
 
+	timespec timeStart;
+    timespec timeEnd;
+
+    if (myid == 0) {
+    	if(MEASURE) {
+		    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &timeStart);
+		}
+    }
+
 	// handle corner cases
 	if (strlen(argv[1]) == 1) {
 		if (myid == 0) {
-			cout << argv[1][0] << ":0" << endl;
+			if(MEASURE) {
+	        	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &timeEnd);
+	       		measureTime(timeStart, timeEnd);
+	    	} else {
+				cout << argv[1][0] << ":0" << endl;
+	    	}
 		}
 		MPI_Finalize(); 
 		return 0;
 	} else if(strlen(argv[1]) == 2) {
 		if (myid == 0) {
-			cout << argv[1][0] << ":0," << argv[1][1] << ":1" << endl;
+			if(MEASURE) {
+	        	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &timeEnd);
+	        	measureTime(timeStart, timeEnd);
+	    	} else {
+				cout << argv[1][0] << ":0," << argv[1][1] << ":1" << endl;
+			}
 		}
 		MPI_Finalize(); 
 		return 0;
@@ -120,11 +161,16 @@ int main(int argc, char *argv[]) {
 
     // print result
     if (myid == 0) { 
-    	cout << argv[1][0] << ":0,";
-    	for (int i = 0; i < vertices - 2; i++) {
-    		cout << argv[1][i + 1] << ":" << arr_final[i] + 1 << ",";
+    	if(MEASURE) {
+	        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &timeEnd);
+	        measureTime(timeStart, timeEnd);
+	    } else {
+	    	cout << argv[1][0] << ":0,";
+	    	for (int i = 0; i < vertices - 2; i++) {
+	    		cout << argv[1][i + 1] << ":" << arr_final[i] + 1 << ",";
+	    	}
+	    	cout << argv[1][vertices - 1] << ":" << arr_final[vertices - 2] + 1 << endl;
     	}
-    	cout << argv[1][vertices - 1] << ":" << arr_final[vertices - 2] + 1 << endl;
     }	
 
 	MPI_Finalize(); 
